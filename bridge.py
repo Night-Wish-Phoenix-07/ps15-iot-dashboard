@@ -77,29 +77,34 @@ def main():
     ap.add_argument("--baud", type=int, default=9600)
     args = ap.parse_args()
 
-    port = args.port or find_port()
-    if not port:
-        raise SystemExit("No serial port found. Plug in the Arduino or pass --port.")
-
     con = init_db()
-    ser = serial.Serial(port, args.baud, timeout=5)
-    time.sleep(2)  # the Uno resets when the port opens
-    print(f"Reading {port} | cloud upload: {'ON' if CLOUD else 'OFF (local only)'} | Ctrl+C to stop")
+    print(f"cloud upload: {'ON' if CLOUD else 'OFF (local only)'} | Ctrl+C to stop")
 
     while True:
-        line = ser.readline().decode(errors="ignore").strip()
-        if not line:
-            continue
         try:
-            r = parse(line)
-        except ValueError:
-            print("skipped:", line)
-            continue
-        ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
-        save_local(con, ts, r)
-        if CLOUD:
-            save_cloud(ts, r)
-        print(ts, r)
+            port = args.port or find_port()
+            if not port:
+                raise serial.SerialException("no Arduino found")
+            ser = serial.Serial(port, args.baud, timeout=5)
+            time.sleep(2)
+            print("Connected to", port)
+            while True:
+                line = ser.readline().decode(errors="ignore").strip()
+                if not line:
+                    continue
+                try:
+                    r = parse(line)
+                except ValueError:
+                    print("skipped:", line)
+                    continue
+                ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
+                save_local(con, ts, r)
+                if CLOUD:
+                    save_cloud(ts, r)
+                print(ts, r)
+        except (serial.SerialException, OSError) as e:
+            print("Connection lost, retrying in 3 s...", e)
+            time.sleep(3)
 
 
 if __name__ == "__main__":
