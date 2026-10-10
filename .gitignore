@@ -1,0 +1,4 @@
+.env
+sensor_data.db
+__pycache__/
+.streamlit/secrets.toml
